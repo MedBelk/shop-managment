@@ -1,0 +1,330 @@
+// app/components/AddProductModal.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Product } from '@/lib/types';
+
+interface AddProductModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (product: Product) => void;
+}
+
+export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductModalProps) {
+  const [formData, setFormData] = useState({
+    name: '',
+    country: '',
+    quality: '',
+    year: ''
+  });
+  
+  // Image states
+  const [frontImage, setFrontImage] = useState<File | null>(null);
+  const [backImage, setBackImage] = useState<File | null>(null);
+  const [frontPreview, setFrontPreview] = useState<string>('');
+  const [backPreview, setBackPreview] = useState<string>('');
+  
+  const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  
+  // Dropdown options
+  const [countries, setCountries] = useState<string[]>([]);
+  const [years, setYears] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadOptions();
+    }
+  }, [isOpen]);
+
+  const loadOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const countriesRes = await fetch('/api/attributes/countries');
+      const countriesData = await countriesRes.json();
+      if (Array.isArray(countriesData)) {
+        setCountries(countriesData.map((c: any) => c.name).sort());
+      }
+
+      const yearsRes = await fetch('/api/attributes/years');
+      const yearsData = await yearsRes.json();
+      if (Array.isArray(yearsData)) {
+        setYears(yearsData.map((y: any) => y.name).sort((a, b) => b.localeCompare(a)));
+      }
+    } catch (error) {
+      console.error('Error loading options:', error);
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFrontImage(file);
+      setFrontPreview(URL.createObjectURL(file));
+      console.log('📷 Front image selected:', file.name);
+    }
+  };
+
+  const handleBackImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBackImage(file);
+      setBackPreview(URL.createObjectURL(file));
+      console.log('📷 Back image selected:', file.name);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<number | null> => {
+    console.log('📤 Uploading image:', file.name, file.size, 'bytes');
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/media/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success && data.id) {
+        console.log('✅ Image uploaded with ID:', data.id);
+        return data.id;
+      } else {
+        console.error('❌ Upload failed:', data.error);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      return null;
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      const imageIds: number[] = [];
+      
+      // Upload front image
+      if (frontImage) {
+        setUploadProgress('Uploading front image...');
+        console.log('🚀 Starting front image upload...');
+        const frontId = await uploadImage(frontImage);
+        if (frontId) {
+          imageIds.push(frontId);
+          console.log('✅ Front image uploaded:', frontId);
+        } else {
+          console.error('❌ Front image upload failed');
+        }
+      } else {
+        console.log('⚠️ No front image selected');
+      }
+
+      // Upload back image
+      if (backImage) {
+        setUploadProgress('Uploading back image...');
+        console.log('🚀 Starting back image upload...');
+        const backId = await uploadImage(backImage);
+        if (backId) {
+          imageIds.push(backId);
+          console.log('✅ Back image uploaded:', backId);
+        } else {
+          console.error('❌ Back image upload failed');
+        }
+      } else {
+        console.log('⚠️ No back image selected');
+      }
+
+      console.log('📷 Total uploaded image IDs:', imageIds);
+      setUploadProgress('Creating product...');
+
+      // Create product with images
+      const productData = {
+        ...formData,
+        status: 'private',
+        imageIds: imageIds
+      };
+
+      console.log('📦 Creating product with data:', productData);
+
+      const response = await fetch('/api/products/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert('✅ Product added successfully!');
+        onAdd(data.product);
+        onClose();
+        // Reset form
+        setFormData({ name: '', country: '', quality: '', year: '' });
+        setFrontImage(null);
+        setBackImage(null);
+        setFrontPreview('');
+        setBackPreview('');
+      } else {
+        alert('❌ Error: ' + (data.error || 'Failed to add product'));
+      }
+    } catch (error: any) {
+      console.error('❌ Submit error:', error);
+      alert('❌ Network error: ' + error.message);
+    } finally {
+      setSaving(false);
+      setUploadProgress('');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content add-product-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">➕ Add New Product</h2>
+          <button onClick={onClose} className="modal-close">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="modal-form">
+          {/* Product Name */}
+          <div className="form-group">
+            <label>Product Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              placeholder="Enter product name"
+            />
+          </div>
+
+          {/* Image Uploads */}
+          <div className="image-upload-section">
+            {/* Front Image */}
+            <div className="form-group">
+              <label>Front Image (Main)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFrontImageChange}
+                className="file-input"
+              />
+              {frontPreview && (
+                <div className="image-preview">
+                  <img src={frontPreview} alt="Front preview" />
+                  <p className="text-xs text-gray-600 mt-1">{frontImage?.name}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Back Image */}
+            <div className="form-group">
+              <label>Back Image (Gallery)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleBackImageChange}
+                className="file-input"
+              />
+              {backPreview && (
+                <div className="image-preview">
+                  <img src={backPreview} alt="Back preview" />
+                  <p className="text-xs text-gray-600 mt-1">{backImage?.name}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Country Dropdown */}
+          <div className="form-group">
+            <label>Country</label>
+            {loadingOptions ? (
+              <select disabled>
+                <option>Loading countries...</option>
+              </select>
+            ) : (
+              <select
+                value={formData.country}
+                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              >
+                <option value="">Select country</option>
+                {countries.map(country => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Quality Dropdown */}
+          <div className="form-group">
+            <label>Quality</label>
+            <select
+              value={formData.quality}
+              onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
+            >
+              <option value="">Select quality</option>
+              <option value="New">New</option>
+              <option value="Good">Good</option>
+              <option value="Used">Used</option>
+            </select>
+          </div>
+
+          {/* Year Dropdown */}
+          <div className="form-group">
+            <label>Issue Year</label>
+            {loadingOptions ? (
+              <select disabled>
+                <option>Loading years...</option>
+              </select>
+            ) : (
+              <select
+                value={formData.year}
+                onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+              >
+                <option value="">Select year</option>
+                {years.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Upload Progress */}
+          {uploadProgress && (
+            <div className="upload-progress">
+              {uploadProgress}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="modal-actions">
+            <button
+              type="submit"
+              disabled={saving || loadingOptions}
+              className="btn-save"
+            >
+              {saving ? uploadProgress || 'Adding...' : '✅ Add Product'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-cancel"
+              disabled={saving}
+            >
+              ✕ Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
