@@ -23,21 +23,19 @@ export default function CountryDetailPage() {
   // Add/Remove product states
   const [newProduct, setNewProduct] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [movingProduct, setMovingProduct] = useState<string | null>(null);
 
-  // Load missing products from localStorage or API
   useEffect(() => {
     loadMissingProducts();
   }, [slug]);
 
   const loadMissingProducts = async () => {
     try {
-      // First, check localStorage for custom missing products
       const stored = localStorage.getItem(`missing-${slug}`);
       
       if (stored) {
         setMissingProducts(JSON.parse(stored));
       } else {
-        // Load from API if not in localStorage
         const response = await fetch(`/api/missing-products/${slug}`);
         const data = await response.json();
         setMissingProducts(data.missing || []);
@@ -48,20 +46,29 @@ export default function CountryDetailPage() {
   };
 
   useEffect(() => {
-    // Fetch public and private products for this country
-    Promise.all([
-      fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
-      fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
-    ]).then(([publicData, privateData]) => {
+    loadProducts();
+  }, [slug]);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      // 🔥 FETCH ALL 3 REQUESTS IN PARALLEL
+      const [publicData, privateData, missingData] = await Promise.all([
+        fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
+        fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
+        fetch(`/api/missing-products/${slug}`).then(r => r.json())
+      ]);
+      
       setPublicProducts(publicData.products || []);
       setPrivateProducts(privateData.products || []);
+      setMissingProducts(missingData.missing || []);
       setCountryName(publicData.countryName || privateData.countryName || slug);
-      setLoading(false);
-    }).catch(err => {
+    } catch (err) {
       console.error('Error loading data:', err);
+    } finally {
       setLoading(false);
-    });
-  }, [slug]);
+    }
+  };
 
   // Add new missing product
   const handleAddProduct = () => {
@@ -87,15 +94,50 @@ export default function CountryDetailPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-600">Loading products...</p>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-24 h-16 bg-gray-200 rounded animate-pulse"></div>
+            <div>
+              <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
+
+      {/* Tabs Skeleton */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-8">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-12 w-40 bg-gray-200 rounded animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content Skeleton */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="bg-white rounded-lg border shadow-sm overflow-hidden">
+              <div className="aspect-3/2 bg-gray-200 animate-pulse"></div>
+              <div className="p-4">
+                <div className="h-6 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
   const flagUrl = getCountryFlagUrl(countryName, 'h120');
 
