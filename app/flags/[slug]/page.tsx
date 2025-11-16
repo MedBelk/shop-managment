@@ -20,55 +20,47 @@ export default function CountryDetailPage() {
   const [countryName, setCountryName] = useState('');
   const [loading, setLoading] = useState(true);
   
-  // Add/Remove product states
   const [newProduct, setNewProduct] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [movingProduct, setMovingProduct] = useState<string | null>(null);
 
+  // Load data only once when slug changes
   useEffect(() => {
-    loadMissingProducts();
-  }, [slug]);
-
-  const loadMissingProducts = async () => {
-    try {
-      const stored = localStorage.getItem(`missing-${slug}`);
+    let mounted = true;
+    
+    const loadAllData = async () => {
+      setLoading(true);
       
-      if (stored) {
-        setMissingProducts(JSON.parse(stored));
-      } else {
-        const response = await fetch(`/api/missing-products/${slug}`);
-        const data = await response.json();
-        setMissingProducts(data.missing || []);
+      try {
+        // Fetch all data in parallel
+        const [publicData, privateData, missingData] = await Promise.all([
+          fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
+          fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
+          fetch(`/api/missing-products/${slug}`).then(r => r.json())
+        ]);
+        
+        if (!mounted) return; // Prevent state updates if component unmounted
+        
+        setPublicProducts(publicData.products || []);
+        setPrivateProducts(privateData.products || []);
+        setMissingProducts(missingData.missing || []);
+        setCountryName(publicData.countryName || slug);
+      } catch (err) {
+        console.error('Error loading data:', err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    } catch (error) {
-      console.error('Error loading missing products:', error);
-    }
-  };
-
-  useEffect(() => {
-    loadProducts();
-  }, [slug]);
-
-  const loadProducts = async () => {
-    setLoading(true);
-    try {
-      // 🔥 FETCH ALL 3 REQUESTS IN PARALLEL
-      const [publicData, privateData, missingData] = await Promise.all([
-        fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
-        fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
-        fetch(`/api/missing-products/${slug}`).then(r => r.json())
-      ]);
-      
-      setPublicProducts(publicData.products || []);
-      setPrivateProducts(privateData.products || []);
-      setMissingProducts(missingData.missing || []);
-      setCountryName(publicData.countryName || privateData.countryName || slug);
-    } catch (err) {
-      console.error('Error loading data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    
+    loadAllData();
+    
+    // Cleanup function
+    return () => {
+      mounted = false;
+    };
+  }, [slug]); // Only re-run when slug changes
 
   // Add new missing product
   const handleAddProduct = () => {
@@ -76,8 +68,6 @@ export default function CountryDetailPage() {
     
     const updatedMissing = [...missingProducts, newProduct.trim()];
     setMissingProducts(updatedMissing);
-    
-    // Save to localStorage
     localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
     
     setNewProduct('');
@@ -88,56 +78,101 @@ export default function CountryDetailPage() {
   const handleRemoveProduct = (productToRemove: string) => {
     const updatedMissing = missingProducts.filter(p => p !== productToRemove);
     setMissingProducts(updatedMissing);
-    
-    // Save to localStorage
     localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
   };
 
+  // Move product to WooCommerce (optional - if you want this feature)
+  const handleMoveToWooCommerce = async (productName: string, asPublic: boolean) => {
+    setMovingProduct(productName);
+    
+    try {
+      const response = await fetch('/api/products/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: productName,
+          country: countryName,
+          status: asPublic ? 'publish' : 'private',
+          price: '',
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove from missing products
+        const updatedMissing = missingProducts.filter(p => p !== productName);
+        setMissingProducts(updatedMissing);
+        localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
+
+        // Reload products
+        const newProducts = asPublic ? 
+          await fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()) :
+          await fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json());
+        
+        if (asPublic) {
+          setPublicProducts(newProducts.products || []);
+        } else {
+          setPrivateProducts(newProducts.products || []);
+        }
+
+        alert(`✅ Product "${productName}" added to ${asPublic ? 'Public' : 'Private'} collection!`);
+      } else {
+        alert(`❌ Error: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error moving product:', error);
+      alert('❌ Failed to create product');
+    } finally {
+      setMovingProduct(null);
+    }
+  };
+
   if (loading) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Skeleton */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
-          <div className="flex items-center gap-4">
-            <div className="w-24 h-16 bg-gray-200 rounded animate-pulse"></div>
-            <div>
-              <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header Skeleton */}
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-16 bg-gray-200 rounded animate-pulse"></div>
+              <div>
+                <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs Skeleton */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-8">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-12 w-40 bg-gray-200 rounded animate-pulse"></div>
+        {/* Tabs Skeleton */}
+        <div className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex gap-8">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-12 w-40 bg-gray-200 rounded animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white rounded-lg border shadow-sm overflow-hidden">
+                <div className="aspect-3/2 bg-gray-200 animate-pulse"></div>
+                <div className="p-4">
+                  <div className="h-6 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       </div>
-
-      {/* Content Skeleton */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="bg-white rounded-lg border shadow-sm overflow-hidden">
-              <div className="aspect-3/2 bg-gray-200 animate-pulse"></div>
-              <div className="p-4">
-                <div className="h-6 bg-gray-200 rounded animate-pulse mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
   const flagUrl = getCountryFlagUrl(countryName, 'h120');
 
@@ -305,24 +340,42 @@ export default function CountryDetailPage() {
                     key={index}
                     className="bg-white border-2 border-red-200 rounded-lg p-4 hover:border-red-400 transition-colors group"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <span className="text-2xl">❌</span>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">{product}</h3>
-                          <p className="text-sm text-gray-500 mt-1">Not in collection</p>
-                        </div>
+                    <div className="flex items-start gap-3 mb-3">
+                      <span className="text-2xl">❌</span>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{product}</h3>
+                        <p className="text-sm text-gray-500 mt-1">Not in collection</p>
                       </div>
-                      <button
-                        onClick={() => handleRemoveProduct(product)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg"
-                        title="Remove from list"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
                     </div>
+
+                    {/* Action Buttons - Optional: Uncomment if you want to add products to WooCommerce */}
+                    {/* <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => handleMoveToWooCommerce(product, false)}
+                        disabled={movingProduct === product}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {movingProduct === product ? '⏳' : '🔒'} Add Private
+                      </button>
+                      <button
+                        onClick={() => handleMoveToWooCommerce(product, true)}
+                        disabled={movingProduct === product}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {movingProduct === product ? '⏳' : '🌍'} Add Public
+                      </button>
+                    </div> */}
+
+                    <button
+                      onClick={() => handleRemoveProduct(product)}
+                      className="w-full mt-2 bg-red-100 hover:bg-red-200 text-red-600 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      title="Remove from list"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Remove
+                    </button>
                   </div>
                 ))}
               </div>

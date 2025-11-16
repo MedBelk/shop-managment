@@ -1,11 +1,9 @@
 // lib/woocommerce.ts
 
-// Environment variables
 const WP_URL = process.env.WP_URL;
 const CONSUMER_KEY = process.env.WC_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.WC_CONSUMER_SECRET;
 
-// Create auth header
 const authHeader = 'Basic ' + Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
 
 // Cache configuration
@@ -28,9 +26,8 @@ export async function fetchWooCommerce(endpoint: string, options?: RequestInit) 
       'Content-Type': 'application/json',
       ...options?.headers
     },
-    // Change cache strategy based on method
     cache: options?.method === 'GET' ? 'default' : 'no-store',
-    next: { revalidate: 300 } // Cache GET requests for 5 minutes
+    next: { revalidate: 300 }
   });
 
   if (!response.ok) {
@@ -51,7 +48,6 @@ export async function fetchWooCommerce(endpoint: string, options?: RequestInit) 
 export async function fetchAllWooCommerceProducts() {
   const now = Date.now();
   
-  // Return cached data if still valid
   if (cachedProducts && (now - cacheTime) < CACHE_DURATION) {
     const cacheAge = Math.round((now - cacheTime) / 1000);
     console.log(`📦 Using cached products: ${cachedProducts.length} (cached ${cacheAge}s ago)`);
@@ -60,7 +56,6 @@ export async function fetchAllWooCommerceProducts() {
   
   console.log('🔄 Cache expired or empty, fetching fresh data from WooCommerce...');
   
-  // Fetch fresh data with pagination
   const allProducts = [];
   let page = 1;
   let hasMore = true;
@@ -75,7 +70,6 @@ export async function fetchAllWooCommerceProducts() {
         allProducts.push(...products);
         console.log(`📦 Fetched page ${page}: ${products.length} products (total: ${allProducts.length})`);
         
-        // If we got less than 100 products, we've reached the end
         if (products.length < 100) {
           hasMore = false;
         } else {
@@ -84,11 +78,10 @@ export async function fetchAllWooCommerceProducts() {
       }
     } catch (error) {
       console.error(`❌ Error fetching page ${page}:`, error);
-      hasMore = false; // Stop pagination on error
+      hasMore = false;
     }
   }
   
-  // Update cache
   cachedProducts = allProducts;
   cacheTime = now;
   
@@ -99,7 +92,7 @@ export async function fetchAllWooCommerceProducts() {
 }
 
 /**
- * Clear the product cache manually (useful for webhooks or admin actions)
+ * Clear the product cache manually
  */
 export function clearProductCache() {
   cachedProducts = null;
@@ -108,7 +101,7 @@ export function clearProductCache() {
 }
 
 /**
- * Get cache status (useful for debugging)
+ * Get cache status
  */
 export function getCacheStatus() {
   const now = Date.now();
