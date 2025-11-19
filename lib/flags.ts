@@ -4,8 +4,7 @@
 const countryCodeMap: { [key: string]: string } = {
   // A
   'afghanistan': 'af', 'albania': 'al', 'algeria': 'dz', 'andorra': 'ad',
-  'angola': 'ao', 'argentina': 'ar', 'armenia': 'am', 'australia': 'au','aruba'
-  :'aw',
+  'angola': 'ao', 'argentina': 'ar', 'armenia': 'am', 'australia': 'au', 'aruba': 'aw',
   'austria': 'at', 'azerbaijan': 'az',
   // B
   'bahamas': 'bs', 'bahrain': 'bh', 'bangladesh': 'bd', 'barbados': 'bb',
@@ -21,7 +20,7 @@ const countryCodeMap: { [key: string]: string } = {
   // D
   'denmark': 'dk', 'djibouti': 'dj', 'dominica': 'dm', 'dominican republic': 'do',
   // E
-  'ecuador': 'ec', 'egypt': 'eg', 'el salvador': 'sv', 'estonia': 'ee','Eswatini': 'szc',
+  'ecuador': 'ec', 'egypt': 'eg', 'el salvador': 'sv', 'estonia': 'ee', 'eswatini': 'sz',
   'ethiopia': 'et',
   // F
   'fiji': 'fj', 'finland': 'fi', 'france': 'fr',
@@ -30,7 +29,7 @@ const countryCodeMap: { [key: string]: string } = {
   'ghana': 'gh', 'greece': 'gr', 'grenada': 'gd', 'guatemala': 'gt',
   'guinea': 'gn', 'guyana': 'gy',
   // H
-  'haiti': 'ht', 'honduras': 'hn', 'hungary': 'hu','hong kong': 'hk',
+  'haiti': 'ht', 'honduras': 'hn', 'hungary': 'hu', 'hong kong': 'hk',
   // I
   'iceland': 'is', 'isle of man': 'im', 'india': 'in', 'indonesia': 'id', 'iran': 'ir',
   'iraq': 'iq', 'ireland': 'ie', 'israel': 'il', 'italy': 'it',
@@ -45,9 +44,9 @@ const countryCodeMap: { [key: string]: string } = {
   'madagascar': 'mg', 'malawi': 'mw', 'malaysia': 'my', 'maldives': 'mv',
   'mali': 'ml', 'malta': 'mt', 'mauritania': 'mr', 'mauritius': 'mu',
   'mexico': 'mx', 'moldova': 'md', 'monaco': 'mc', 'mongolia': 'mn',
-  'montenegro': 'me', 'morocco': 'ma', 'mozambique': 'mz', 'myanmar': 'mm','macau': 'mo',
+  'montenegro': 'me', 'morocco': 'ma', 'mozambique': 'mz', 'myanmar': 'mm', 'macau': 'mo',
   // N
-  'namibia': 'na', 'nepal': 'np', 'netherlands': 'nl', 'netherlands-antilles': 'an', 'new zealand': 'nz',
+  'namibia': 'na', 'nepal': 'np', 'netherlands': 'nl',  'new zealand': 'nz',
   'nicaragua': 'ni', 'niger': 'ne', 'nigeria': 'ng', 'north korea': 'kp',
   'north macedonia': 'mk', 'norway': 'no',
   // O
@@ -63,14 +62,14 @@ const countryCodeMap: { [key: string]: string } = {
   'saudi arabia': 'sa', 'senegal': 'sn', 'serbia': 'rs', 'singapore': 'sg',
   'slovakia': 'sk', 'slovenia': 'si', 'somalia': 'so', 'south africa': 'za',
   'south korea': 'kr', 'south sudan': 'ss', 'spain': 'es', 'sri lanka': 'lk',
-  'sudan': 'sd', 'sweden': 'se', 'switzerland': 'ch', 'syria': 'sy','solomon islands':'sb',
+  'sudan': 'sd', 'sweden': 'se', 'switzerland': 'ch', 'syria': 'sy', 'solomon islands': 'sb',
   // T
   'taiwan': 'tw', 'tajikistan': 'tj', 'tanzania': 'tz', 'thailand': 'th',
-  'togo': 'tg', 'tonga': 'to','trinidad and tobago': 'tt', 'tunisia': 'tn', 'turkey': 'tr',
+  'togo': 'tg', 'tonga': 'to', 'trinidad and tobago': 'tt', 'tunisia': 'tn', 'turkey': 'tr',
   'turkmenistan': 'tm',
   // U
   'uganda': 'ug', 'ukraine': 'ua', 'united arab emirates': 'ae',
-  'united kingdom': 'gb',  'united states': 'us', 
+  'united kingdom': 'gb', 'united states': 'us',
   'uruguay': 'uy', 'uzbekistan': 'uz',
   // V
   'venezuela': 've', 'vietnam': 'vn',
@@ -78,33 +77,52 @@ const countryCodeMap: { [key: string]: string } = {
   'yemen': 'ye',
   // Z
   'zambia': 'zm', 'zimbabwe': 'zw',
-
-
-  'central africa': 'cf',
-  'central african republic': 'cf',
+  // Special regions
+  
   'european union': 'eu',
   'falkland islands': 'fk',
   'papua new guinea': 'pg',
-    // Defunct but flagcdn still has it
+};
+
+// Custom flags for countries not available on flagcdn or need special images
+const CUSTOM_FLAGS: Record<string, string> = {
+  'west africa': '/custom-flags/west-africa.jpg',
+  'central africa': '/custom-flags/central-africa.jpg',
+  'west-africa': '/custom-flags/west-africa.jpg',
+  'central-africa': '/custom-flags/central-africa.jpg',
   
-  'eswatini': 'sz'
+  'eritrea': '/custom-flags/langfr-960px-Flag_of_Eritrea.svg.png',
+  'netherlands antilles': '/custom-flags/netherlands-antille.jpg',
+  'netherlands-antilles': '/custom-flags/netherlands-antille.jpg',
+    'french pacific territories': '/custom-flags/Flag_of_French_Polynesia.svg.png',
+    'french-pacific-territories': '/custom-flags/Flag_of_French_Polynesia.svg.png',
 };
 
 /**
  * Get flag image URL from country name
  * Uses flagcdn.com for high-quality SVG flags
+ * Falls back to custom flags if available
  */
-export function getCountryFlagUrl(countryName: string, size: 'h20' | 'h24' | 'h40' | 'h60' | 'h80' | 'h120' = 'h80'): string {
+export function getCountryFlagUrl(
+  countryName: string,
+  size: 'h20' | 'h24' | 'h40' | 'h60' | 'h80' | 'h120' = 'h80'
+): string {
   const normalizedName = countryName.toLowerCase().trim();
+  
+  // 1. Check for custom flags first
+  if (CUSTOM_FLAGS[normalizedName]) {
+    return CUSTOM_FLAGS[normalizedName];
+  }
+  
+  // 2. Try to get the country code
   const code = countryCodeMap[normalizedName];
   
   if (!code) {
-    // Return default flag image if country not found
-    return 'https://flagcdn.com/w80/un.png'; // UN flag as fallback
+    // 3. Return UN flag as fallback if country not found
+    return 'https://flagcdn.com/w80/un.png';
   }
   
-  // Return flag URL from flagcdn.com
-  // Size options: h20, h24, h40, h60, h80, h120 (height in pixels)
+  // 4. Return flag URL from flagcdn.com
   return `https://flagcdn.com/${size}/${code}.png`;
 }
 

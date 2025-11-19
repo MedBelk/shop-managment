@@ -19,7 +19,12 @@ export default function CountryDetailPage() {
   const [missingProducts, setMissingProducts] = useState<string[]>([]);
   const [countryName, setCountryName] = useState('');
   const [loading, setLoading] = useState(true);
-  
+  const capitalizeWords = (text: string) => {
+  return text
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -31,13 +36,17 @@ export default function CountryDetailPage() {
   const [newProduct, setNewProduct] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
+  // Load data only once on mount or when slug changes
   useEffect(() => {
     let mounted = true;
     
     const loadAllData = async () => {
       setLoading(true);
+      console.log(`⏱️ Loading data for ${slug}...`);
+      const startTime = Date.now();
       
       try {
+        // These API calls are FAST because they filter at WooCommerce level
         const [publicData, privateData, missingData] = await Promise.all([
           fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
           fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
@@ -46,15 +55,13 @@ export default function CountryDetailPage() {
         
         if (!mounted) return;
         
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ Data loaded in ${elapsed}ms`);
+        
         setPublicProducts(publicData.products || []);
         setPrivateProducts(privateData.products || []);
         setMissingProducts(missingData.missing || []);
         setCountryName(publicData.countryName || slug);
-
-        if (publicData.products?.[0]) {
-          console.log('Sample product attributes:', publicData.products[0].attributes);
-          console.log('Sample product categories:', publicData.products[0].categories);
-        }
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -71,16 +78,23 @@ export default function CountryDetailPage() {
     };
   }, [slug]);
 
+  // Reset filters when changing tabs
+  useEffect(() => {
+    setSearchTerm('');
+    setCategoryFilter('all');
+    setAttributeFilters({});
+  }, [activeTab]);
+
   const currentProducts = activeTab === 'public' ? publicProducts : privateProducts;
 
-  // Extract available categories
+  // Extract available categories (memoized)
   const availableCategories = useMemo(() => {
     const categoriesSet = new Set<string>();
     
     currentProducts.forEach(product => {
       if (Array.isArray(product.categories) && product.categories.length > 0) {
         product.categories.forEach(cat => {
-          if (cat && cat.name) {
+          if (cat?.name) {
             categoriesSet.add(cat.name);
           }
         });
@@ -90,14 +104,15 @@ export default function CountryDetailPage() {
     return Array.from(categoriesSet).sort();
   }, [currentProducts]);
 
-  // Extract all unique attributes and their values
+  // Extract all unique attributes (memoized)
   const availableAttributes = useMemo(() => {
     const attributesMap = new Map<string, Set<string>>();
 
     currentProducts.forEach(product => {
       product.attributes?.forEach(attr => {
         if (attr.name && attr.options) {
-          if (attr.name.toLowerCase() === 'country' || attr.name.toLowerCase() === 'pays') {
+          const attrNameLower = attr.name.toLowerCase();
+          if (attrNameLower === 'country' || attrNameLower === 'pays') {
             return;
           }
 
@@ -123,8 +138,10 @@ export default function CountryDetailPage() {
     return result;
   }, [currentProducts]);
 
-  // Filter products - UPDATED with category filter
+  // Filter and sort products (all client-side, but on already-filtered data)
   const filteredProducts = useMemo(() => {
+    console.log(`🔍 Filtering ${currentProducts.length} products...`);
+    
     let filtered = currentProducts.filter(product => {
       // Search filter
       if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase())) {
@@ -134,7 +151,7 @@ export default function CountryDetailPage() {
       // Category filter
       if (categoryFilter !== 'all') {
         const matchesCategory = Array.isArray(product.categories) && 
-          product.categories.some(cat => cat && cat.name === categoryFilter);
+          product.categories.some(cat => cat?.name === categoryFilter);
         if (!matchesCategory) return false;
       }
 
@@ -167,6 +184,7 @@ export default function CountryDetailPage() {
       return sortOrder === 'asc' ? compareValue : -compareValue;
     });
 
+    console.log(`✅ Filtered to ${filtered.length} products`);
     return filtered;
   }, [currentProducts, searchTerm, categoryFilter, attributeFilters, sortBy, sortOrder]);
 
@@ -174,8 +192,11 @@ export default function CountryDetailPage() {
   const getProductAttributes = (product: Product) => {
     const attrs: Record<string, string> = {};
     product.attributes?.forEach(attr => {
-      if (attr.name && attr.name.toLowerCase() !== 'country' && attr.name.toLowerCase() !== 'pays') {
-        attrs[attr.name] = attr.options?.[0] || '-';
+      if (attr.name) {
+        const attrNameLower = attr.name.toLowerCase();
+        if (attrNameLower !== 'country' && attrNameLower !== 'pays') {
+          attrs[attr.name] = attr.options?.[0] || '-';
+        }
       }
     });
     return attrs;
@@ -199,10 +220,11 @@ export default function CountryDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-600">Loading products...</p>
+          <p className="mt-4 text-gray-600 font-medium">Loading {slug} products...</p>
+          <p className="mt-2 text-sm text-gray-500">This should only take 1-2 seconds</p>
         </div>
       </div>
     );
@@ -211,29 +233,32 @@ export default function CountryDetailPage() {
   const flagUrl = getCountryFlagUrl(countryName, 'h120');
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link href="/flags" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
-            ← Back to Flags
-          </Link>
-          
-          <div className="flex items-center gap-4">
-            <img
-              src={flagUrl}
-              alt={`${countryName} flag`}
-              className="w-24 h-auto rounded shadow-md"
-            />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{countryName}</h1>
-              <p className="text-gray-600 mt-1">
-                {publicProducts.length + privateProducts.length} products in collection
-              </p>
-            </div>
+    
+  <div className="min-h-screen bg-gray-50">
+    {/* Header */}
+    <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <Link href="/flags" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+          ← Back to Flags
+        </Link>
+        
+        <div className="flex items-center gap-4">
+          <img
+            src={flagUrl}
+            alt={`${countryName} flag`}
+            className="w-24 h-auto rounded shadow-md"
+          />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {capitalizeWords(countryName)}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {publicProducts.length + privateProducts.length} products in collection
+            </p>
           </div>
         </div>
       </div>
+    </div>
 
       {/* Tabs */}
       <div className="bg-white border-b">
@@ -290,7 +315,7 @@ export default function CountryDetailPage() {
         {(activeTab === 'public' || activeTab === 'private') && (
           <div>
             {/* Filters */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-lg mb-6 border border-blue-100">
+            <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-lg mb-6 border border-blue-100">
               <div className="flex items-center gap-2 mb-4">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -362,19 +387,7 @@ export default function CountryDetailPage() {
 
                 {/* Sort */}
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as 'name' | 'price')}
-                      className="w-full border-2 border-green-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white shadow-sm text-gray-900 font-medium appearance-none cursor-pointer hover:border-green-300 transition-colors"
-                    >
-                      <option value="name" className="text-gray-900 font-semibold">📝 Sort by Name</option>
-                      <option value="price" className="text-gray-900 font-semibold">💰 Sort by Price</option>
-                    </select>
-                    <svg className="w-5 h-5 text-green-500 absolute right-3 top-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
+                  
                   <button
                     onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                     className="border-2 border-green-200 bg-white hover:bg-green-50 rounded-lg px-4 py-3 font-bold text-green-600 shadow-sm transition-all hover:shadow-md active:scale-95"
@@ -423,66 +436,80 @@ export default function CountryDetailPage() {
               )}
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Image
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      {availableAttributes.map(attr => (
-                        <th key={attr.name} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          {attr.name}
-                        </th>
-                      ))}
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredProducts.length === 0 ? (
-                      <tr>
-                        <td colSpan={3 + availableAttributes.length} className="px-6 py-12 text-center text-gray-500">
-                          {currentProducts.length === 0 ? 'No products in this collection' : 'No products found matching your filters'}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredProducts.map(product => {
-                        const attrs = getProductAttributes(product);
-                        return (
-                          <tr key={product.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <img
-                                src={product.images?.[0]?.src || '/placeholder.png'}
-                                alt={product.name}
-                                className="h-16 w-16 object-cover rounded"
-                              />
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                            </td>
-                            {availableAttributes.map(attr => (
-                              <td key={attr.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {attrs[attr.name] || '-'}
-                              </td>
-                            ))}
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {product.price ? `$${product.price}` : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+           {/* Table */}
+<div className="bg-white rounded-lg shadow overflow-hidden">
+  <div className="overflow-x-auto">
+    <table className="min-w-full divide-y divide-gray-200">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Image
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Name
+          </th>
+          {/* Dynamic attribute columns */}
+          {availableAttributes.map(attr => (
+            <th key={attr.name} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {attr.name}
+            </th>
+          ))}
+          {/* Conditional last column based on active tab */}
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {activeTab === 'private' ? 'Source' : 'Price'}
+          </th>
+        </tr>
+      </thead>
+      <tbody className="bg-white divide-y divide-gray-200">
+        {filteredProducts.length === 0 ? (
+          <tr>
+            <td colSpan={3 + availableAttributes.length} className="px-6 py-12 text-center text-gray-500">
+              {currentProducts.length === 0 ? 'No products in this collection' : 'No products found matching your filters'}
+            </td>
+          </tr>
+        ) : (
+          filteredProducts.map(product => {
+            const attrs = getProductAttributes(product);
+            return (
+              <tr key={product.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <img
+                    src={product.images?.[0]?.src || '/placeholder.png'}
+                    alt={product.name}
+                    className="h-16 w-16 object-cover rounded"
+                  />
+                </td>
+                <td className="px-6 py-4">
+                  <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                </td>
+                {/* Dynamic attribute values */}
+                {availableAttributes.map(attr => (
+                  <td key={attr.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {attrs[attr.name] || '-'}
+                  </td>
+                ))}
+                {/* Conditional last column - Source for Private, Price for Public */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {activeTab === 'private' ? (
+                    // Show Source for private products
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {getAttributeValue(product, 'source') || getAttributeValue(product, 'Source') || '-'}
+                    </span>
+                  ) : (
+                    // Show Price for public products
+                    <span className="font-medium text-gray-900">
+                      {product.price ? `$${product.price}` : '-'}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
           </div>
         )}
 

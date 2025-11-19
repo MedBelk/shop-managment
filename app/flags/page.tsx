@@ -1,7 +1,7 @@
 // app/flags/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Country } from '@/lib/types';
 import { getCountryFlagUrl } from '@/lib/flags';
@@ -10,8 +10,8 @@ export default function FlagsPage() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Single useEffect - no duplicates!
   useEffect(() => {
     fetch('/api/attributes/countries')
       .then(res => res.json())
@@ -19,7 +19,6 @@ export default function FlagsPage() {
         if (data.error) {
           setError(data.error);
         } else {
-          // Log country names to see exact format
           console.log('📊 Countries from API:', data.map((c: Country) => c.name));
           setCountries(data);
         }
@@ -30,6 +29,16 @@ export default function FlagsPage() {
         setLoading(false);
       });
   }, []);
+
+  // Filter countries based on search term
+  const filteredCountries = useMemo(() => {
+    if (!searchTerm.trim()) return countries;
+    
+    const search = searchTerm.toLowerCase();
+    return countries.filter(country => 
+      country.name.toLowerCase().includes(search)
+    );
+  }, [countries, searchTerm]);
 
   if (loading) {
     return (
@@ -66,11 +75,55 @@ export default function FlagsPage() {
           </p>
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-8">
+          <div className="relative max-w-md">
+            <input
+              type="text"
+              placeholder="Search countries..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-3 pl-12 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm text-gray-900 font-medium"
+            />
+            <svg 
+              className="w-5 h-5 text-gray-400 absolute left-4 top-4" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* Results count */}
+          {searchTerm && (
+            <p className="mt-3 text-sm text-gray-600">
+              {filteredCountries.length === 0 ? (
+                <span className="text-red-600">No countries found matching "{searchTerm}"</span>
+              ) : (
+                <span>
+                  Found <span className="font-semibold text-blue-600">{filteredCountries.length}</span> 
+                  {filteredCountries.length === 1 ? ' country' : ' countries'}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+
         {/* Countries Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {countries.map(country => {
+          {filteredCountries.map(country => {
             const flagUrl = getCountryFlagUrl(country.name, 'h80');
-            console.log(`🏁 ${country.name} -> ${flagUrl}`);
             
             return (
               <Link
@@ -87,22 +140,22 @@ export default function FlagsPage() {
                       className="max-w-full max-h-full rounded shadow-md"
                       onError={(e) => {
                         console.error(`❌ Flag failed for: ${country.name} (${flagUrl})`);
-                        // Fallback to emoji if image fails to load
                         e.currentTarget.style.display = 'none';
                         const parent = e.currentTarget.parentElement;
                         if (parent) {
                           parent.innerHTML = '<div class="text-6xl">🏳️</div>';
                         }
                       }}
-                      onLoad={() => {
-                        console.log(`✅ Flag loaded: ${country.name}`);
-                      }}
                     />
                   </div>
                   
-                  {/* Country Name */}
+                  {/* Country Name - Highlight matching text */}
                   <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600">
-                    {country.name}
+                    {searchTerm ? (
+                      <HighlightText text={country.name} highlight={searchTerm} />
+                    ) : (
+                      country.name
+                    )}
                   </h3>
                   
                   {/* Product Count */}
@@ -116,12 +169,34 @@ export default function FlagsPage() {
         </div>
 
         {/* Empty State */}
-        {countries.length === 0 && (
+        {filteredCountries.length === 0 && !searchTerm && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No countries found</p>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+// Helper component to highlight matching text
+function HighlightText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight.trim()) {
+    return <>{text}</>;
+  }
+
+  const regex = new RegExp(`(${highlight})`, 'gi');
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, i) => 
+        regex.test(part) ? (
+          <span key={i} className="bg-yellow-200 text-gray-900">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
   );
 }
