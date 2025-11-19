@@ -1,7 +1,7 @@
 // app/flags/[slug]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Product } from '@/lib/types';
@@ -20,11 +20,17 @@ export default function CountryDetailPage() {
   const [countryName, setCountryName] = useState('');
   const [loading, setLoading] = useState(true);
   
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [attributeFilters, setAttributeFilters] = useState<Record<string, string>>({});
+  const [sortBy, setSortBy] = useState<'name' | 'price'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Missing products states
   const [newProduct, setNewProduct] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [movingProduct, setMovingProduct] = useState<string | null>(null);
 
-  // Load data only once when slug changes
   useEffect(() => {
     let mounted = true;
     
@@ -32,19 +38,23 @@ export default function CountryDetailPage() {
       setLoading(true);
       
       try {
-        // Fetch all data in parallel
         const [publicData, privateData, missingData] = await Promise.all([
           fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()),
           fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json()),
           fetch(`/api/missing-products/${slug}`).then(r => r.json())
         ]);
         
-        if (!mounted) return; // Prevent state updates if component unmounted
+        if (!mounted) return;
         
         setPublicProducts(publicData.products || []);
         setPrivateProducts(privateData.products || []);
         setMissingProducts(missingData.missing || []);
         setCountryName(publicData.countryName || slug);
+
+        if (publicData.products?.[0]) {
+          console.log('Sample product attributes:', publicData.products[0].attributes);
+          console.log('Sample product categories:', publicData.products[0].categories);
+        }
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -56,119 +66,143 @@ export default function CountryDetailPage() {
     
     loadAllData();
     
-    // Cleanup function
     return () => {
       mounted = false;
     };
-  }, [slug]); // Only re-run when slug changes
+  }, [slug]);
 
-  // Add new missing product
+  const currentProducts = activeTab === 'public' ? publicProducts : privateProducts;
+
+  // Extract available categories
+  const availableCategories = useMemo(() => {
+    const categoriesSet = new Set<string>();
+    
+    currentProducts.forEach(product => {
+      if (Array.isArray(product.categories) && product.categories.length > 0) {
+        product.categories.forEach(cat => {
+          if (cat && cat.name) {
+            categoriesSet.add(cat.name);
+          }
+        });
+      }
+    });
+    
+    return Array.from(categoriesSet).sort();
+  }, [currentProducts]);
+
+  // Extract all unique attributes and their values
+  const availableAttributes = useMemo(() => {
+    const attributesMap = new Map<string, Set<string>>();
+
+    currentProducts.forEach(product => {
+      product.attributes?.forEach(attr => {
+        if (attr.name && attr.options) {
+          if (attr.name.toLowerCase() === 'country' || attr.name.toLowerCase() === 'pays') {
+            return;
+          }
+
+          if (!attributesMap.has(attr.name)) {
+            attributesMap.set(attr.name, new Set());
+          }
+          
+          attr.options.forEach(option => {
+            attributesMap.get(attr.name)?.add(option);
+          });
+        }
+      });
+    });
+
+    const result: Array<{ name: string; values: string[] }> = [];
+    attributesMap.forEach((values, name) => {
+      result.push({
+        name,
+        values: Array.from(values).sort()
+      });
+    });
+
+    return result;
+  }, [currentProducts]);
+
+  // Filter products - UPDATED with category filter
+  const filteredProducts = useMemo(() => {
+    let filtered = currentProducts.filter(product => {
+      // Search filter
+      if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+
+      // Category filter
+      if (categoryFilter !== 'all') {
+        const matchesCategory = Array.isArray(product.categories) && 
+          product.categories.some(cat => cat && cat.name === categoryFilter);
+        if (!matchesCategory) return false;
+      }
+
+      // Attribute filters
+      for (const [attrName, filterValue] of Object.entries(attributeFilters)) {
+        if (filterValue === 'all') continue;
+
+        const hasMatch = product.attributes?.some(attr =>
+          attr.name === attrName && attr.options?.includes(filterValue)
+        );
+
+        if (!hasMatch) return false;
+      }
+
+      return true;
+    });
+
+    // Sort products
+    filtered.sort((a, b) => {
+      let compareValue = 0;
+      
+      if (sortBy === 'name') {
+        compareValue = a.name.localeCompare(b.name);
+      } else if (sortBy === 'price') {
+        const priceA = parseFloat(a.price || '0');
+        const priceB = parseFloat(b.price || '0');
+        compareValue = priceA - priceB;
+      }
+      
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+
+    return filtered;
+  }, [currentProducts, searchTerm, categoryFilter, attributeFilters, sortBy, sortOrder]);
+
+  // Get all attribute values for display in table
+  const getProductAttributes = (product: Product) => {
+    const attrs: Record<string, string> = {};
+    product.attributes?.forEach(attr => {
+      if (attr.name && attr.name.toLowerCase() !== 'country' && attr.name.toLowerCase() !== 'pays') {
+        attrs[attr.name] = attr.options?.[0] || '-';
+      }
+    });
+    return attrs;
+  };
+
+  // Missing products handlers
   const handleAddProduct = () => {
     if (!newProduct.trim()) return;
-    
     const updatedMissing = [...missingProducts, newProduct.trim()];
     setMissingProducts(updatedMissing);
     localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
-    
     setNewProduct('');
     setIsAdding(false);
   };
 
-  // Remove missing product
   const handleRemoveProduct = (productToRemove: string) => {
     const updatedMissing = missingProducts.filter(p => p !== productToRemove);
     setMissingProducts(updatedMissing);
     localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
   };
 
-  // Move product to WooCommerce (optional - if you want this feature)
-  const handleMoveToWooCommerce = async (productName: string, asPublic: boolean) => {
-    setMovingProduct(productName);
-    
-    try {
-      const response = await fetch('/api/products/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: productName,
-          country: countryName,
-          status: asPublic ? 'publish' : 'private',
-          price: '',
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Remove from missing products
-        const updatedMissing = missingProducts.filter(p => p !== productName);
-        setMissingProducts(updatedMissing);
-        localStorage.setItem(`missing-${slug}`, JSON.stringify(updatedMissing));
-
-        // Reload products
-        const newProducts = asPublic ? 
-          await fetch(`/api/products/by-country-type?country=${slug}&type=public`).then(r => r.json()) :
-          await fetch(`/api/products/by-country-type?country=${slug}&type=private`).then(r => r.json());
-        
-        if (asPublic) {
-          setPublicProducts(newProducts.products || []);
-        } else {
-          setPrivateProducts(newProducts.products || []);
-        }
-
-        alert(`✅ Product "${productName}" added to ${asPublic ? 'Public' : 'Private'} collection!`);
-      } else {
-        alert(`❌ Error: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error moving product:', error);
-      alert('❌ Failed to create product');
-    } finally {
-      setMovingProduct(null);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header Skeleton */}
-        <div className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
-            <div className="flex items-center gap-4">
-              <div className="w-24 h-16 bg-gray-200 rounded animate-pulse"></div>
-              <div>
-                <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-                <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs Skeleton */}
-        <div className="bg-white border-b">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex gap-8">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-12 w-40 bg-gray-200 rounded animate-pulse"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Content Skeleton */}
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="bg-white rounded-lg border shadow-sm overflow-hidden">
-                <div className="aspect-3/2 bg-gray-200 animate-pulse"></div>
-                <div className="p-4">
-                  <div className="h-6 bg-gray-200 rounded animate-pulse mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="mt-4 text-gray-600">Loading products...</p>
         </div>
       </div>
     );
@@ -252,39 +286,207 @@ export default function CountryDetailPage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Public Products Tab */}
-        {activeTab === 'public' && (
+        {/* Products Table (Public & Private) */}
+        {(activeTab === 'public' || activeTab === 'private') && (
           <div>
-            <h2 className="text-2xl font-bold mb-6">Public Collection</h2>
-            {publicProducts.length === 0 ? (
-              <p className="text-gray-500">No public products yet</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {publicProducts.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+            {/* Filters */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-lg mb-6 border border-blue-100">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-800">Filters</h3>
               </div>
-            )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Search */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full border-2 border-blue-200 rounded-lg px-4 py-3 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm text-gray-900 placeholder-gray-500 font-medium"
+                  />
+                  <svg className="w-5 h-5 text-blue-500 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+
+                {/* Category Filter */}
+                <div className="relative">
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full border-2 border-pink-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white shadow-sm text-gray-900 font-medium appearance-none cursor-pointer hover:border-pink-300 transition-colors"
+                  >
+                    <option value="all" className="text-gray-900 font-semibold">
+                      📂 All Categories
+                    </option>
+                    {availableCategories.map(category => (
+                      <option key={category} value={category} className="text-gray-800 font-medium">
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                  <svg className="w-5 h-5 text-pink-500 absolute right-3 top-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                {/* Dynamic Attribute Filters */}
+                {availableAttributes.slice(0, 2).map(attr => (
+                  <div key={attr.name} className="relative">
+                    <select
+                      value={attributeFilters[attr.name] || 'all'}
+                      onChange={(e) => setAttributeFilters({
+                        ...attributeFilters,
+                        [attr.name]: e.target.value
+                      })}
+                      className="w-full border-2 border-purple-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white shadow-sm text-gray-900 font-medium appearance-none cursor-pointer hover:border-purple-300 transition-colors"
+                    >
+                      <option value="all" className="text-gray-900 font-semibold">
+                        All {attr.name} ✨
+                      </option>
+                      {attr.values.map(value => (
+                        <option key={value} value={value} className="text-gray-800 font-medium">
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                    <svg className="w-5 h-5 text-purple-500 absolute right-3 top-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                ))}
+
+                {/* Sort */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as 'name' | 'price')}
+                      className="w-full border-2 border-green-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white shadow-sm text-gray-900 font-medium appearance-none cursor-pointer hover:border-green-300 transition-colors"
+                    >
+                      <option value="name" className="text-gray-900 font-semibold">📝 Sort by Name</option>
+                      <option value="price" className="text-gray-900 font-semibold">💰 Sort by Price</option>
+                    </select>
+                    <svg className="w-5 h-5 text-green-500 absolute right-3 top-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="border-2 border-green-200 bg-white hover:bg-green-50 rounded-lg px-4 py-3 font-bold text-green-600 shadow-sm transition-all hover:shadow-md active:scale-95"
+                    title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                  >
+                    {sortOrder === 'asc' ? '↑ A-Z' : '↓ Z-A'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Results Info */}
+              <div className="mt-4 flex items-center justify-between bg-white/70 backdrop-blur-sm rounded-lg px-4 py-3 border border-blue-100">
+                <div className="text-sm font-semibold text-gray-700">
+                  <span className="text-blue-600 text-lg">{filteredProducts.length}</span>
+                  <span className="text-gray-500"> of </span>
+                  <span className="text-gray-700">{currentProducts.length}</span>
+                  <span className="text-gray-500"> products</span>
+                </div>
+                {availableAttributes.length > 0 && (
+                  <div className="text-sm font-medium text-purple-600 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    {availableAttributes.length} filter{availableAttributes.length !== 1 ? 's' : ''} available
+                  </div>
+                )}
+              </div>
+
+              {/* Clear Filters Button */}
+              {(searchTerm || categoryFilter !== 'all' || Object.values(attributeFilters).some(v => v !== 'all')) && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCategoryFilter('all');
+                      setAttributeFilters({});
+                    }}
+                    className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear All Filters
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Image
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      {availableAttributes.map(attr => (
+                        <th key={attr.name} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {attr.name}
+                        </th>
+                      ))}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Price
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan={3 + availableAttributes.length} className="px-6 py-12 text-center text-gray-500">
+                          {currentProducts.length === 0 ? 'No products in this collection' : 'No products found matching your filters'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredProducts.map(product => {
+                        const attrs = getProductAttributes(product);
+                        return (
+                          <tr key={product.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <img
+                                src={product.images?.[0]?.src || '/placeholder.png'}
+                                alt={product.name}
+                                className="h-16 w-16 object-cover rounded"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                            </td>
+                            {availableAttributes.map(attr => (
+                              <td key={attr.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {attrs[attr.name] || '-'}
+                              </td>
+                            ))}
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {product.price ? `$${product.price}` : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Private Products Tab */}
-        {activeTab === 'private' && (
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Private Collection</h2>
-            {privateProducts.length === 0 ? (
-              <p className="text-gray-500">No private products yet</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {privateProducts.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Missing Products Tab */}
+        {/* Missing Products Tab - Keep existing code */}
         {activeTab === 'missing' && (
           <div>
             <div className="flex justify-between items-center mb-6">
@@ -298,7 +500,6 @@ export default function CountryDetailPage() {
               </button>
             </div>
 
-            {/* Add Product Form */}
             {isAdding && (
               <div className="bg-white border-2 border-blue-200 rounded-lg p-4 mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">Add New Missing Product</h3>
@@ -330,7 +531,6 @@ export default function CountryDetailPage() {
               </div>
             )}
 
-            {/* Missing Products List */}
             {missingProducts.length === 0 ? (
               <p className="text-gray-500">No missing products listed</p>
             ) : (
@@ -347,29 +547,9 @@ export default function CountryDetailPage() {
                         <p className="text-sm text-gray-500 mt-1">Not in collection</p>
                       </div>
                     </div>
-
-                    {/* Action Buttons - Optional: Uncomment if you want to add products to WooCommerce */}
-                    {/* <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => handleMoveToWooCommerce(product, false)}
-                        disabled={movingProduct === product}
-                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {movingProduct === product ? '⏳' : '🔒'} Add Private
-                      </button>
-                      <button
-                        onClick={() => handleMoveToWooCommerce(product, true)}
-                        disabled={movingProduct === product}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {movingProduct === product ? '⏳' : '🌍'} Add Public
-                      </button>
-                    </div> */}
-
                     <button
                       onClick={() => handleRemoveProduct(product)}
                       className="w-full mt-2 bg-red-100 hover:bg-red-200 text-red-600 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                      title="Remove from list"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -382,36 +562,6 @@ export default function CountryDetailPage() {
             )}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// Product Card Component
-function ProductCard({ product }: { product: Product }) {
-  const imageUrl = product.images?.[0]?.src || '/placeholder.png';
-  
-  return (
-    <div className="bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      <div className="aspect-3/2 relative bg-gray-100">
-        <img
-          src={imageUrl}
-          alt={product.name}
-          className="w-full h-full object-cover"
-        />
-      </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 mb-2">{product.name}</h3>
-        <div className="flex flex-wrap gap-2 text-sm text-gray-600">
-          {product.attributes?.map(attr => (
-            <span
-              key={attr.id}
-              className="bg-gray-100 px-2 py-1 rounded"
-            >
-              {attr.options?.[0]}
-            </span>
-          ))}
-        </div>
       </div>
     </div>
   );

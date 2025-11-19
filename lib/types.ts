@@ -1,4 +1,5 @@
 // lib/types.ts
+
 export interface ProductAttribute {
   id: number;
   name: string;
@@ -13,6 +14,12 @@ export interface ProductImage {
   alt: string;
 }
 
+export interface ProductCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -21,7 +28,8 @@ export interface Product {
   price: string;
   regular_price: string;
   attributes: ProductAttribute[];
-  images?: ProductImage[]; // ← Add this line
+  images?: ProductImage[];
+  categories?: ProductCategory[];
 }
 
 export interface Country {
