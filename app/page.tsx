@@ -187,7 +187,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-sky-50">
       <div className="max-w-7xl mx-auto px-4 py-12 sm:py-16">
         <header className="text-center mb-14">
          
@@ -233,11 +233,7 @@ export default function HomePage() {
               color="orange"
             />
           </div>
-          {loading && (
-            <p className="mt-3 text-sm text-slate-500 text-center">
-              Fetching fresh data…
-            </p>
-          )}
+        
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -247,7 +243,7 @@ export default function HomePage() {
           >
             <div className="p-8">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-100 to-sky-200 flex items-center justify-center text-4xl group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-sky-100 to-sky-200 flex items-center justify-center text-4xl group-hover:scale-110 transition-transform">
                   🌍
                 </div>
                 <div>
@@ -288,7 +284,7 @@ export default function HomePage() {
           >
             <div className="p-8">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center text-4xl group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-purple-100 to-purple-200 flex items-center justify-center text-4xl group-hover:scale-110 transition-transform">
                   📦
                 </div>
                 <div>

@@ -406,7 +406,7 @@ export default function CountryDetailPage() {
                 <h3 className="text-lg font-semibold text-gray-800">Filters</h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="relative">
                   <input
                     type="text"
@@ -493,34 +493,7 @@ export default function CountryDetailPage() {
                   </div>
                 ))}
 
-                <div className="relative">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SortBy)}
-                    className="w-full border-2 border-orange-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm text-gray-900 font-medium appearance-none"
-                  >
-                    <option value="name">Sort by name</option>
-                    <option value="price" disabled={!priceSortable}>
-                      Sort by price
-                    </option>
-                    <option value="year" disabled={!yearSortable}>
-                      Sort by year
-                    </option>
-                  </select>
-                  <svg
-                    className="w-5 h-5 text-orange-500 absolute right-3 top-3.5 pointer-events-none"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
+                
 
                 <button
                   onClick={() =>
