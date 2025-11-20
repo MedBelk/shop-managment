@@ -26,7 +26,6 @@ interface Category {
 export default function EditProductModal({ product, isOpen, onClose, onSave }: EditProductModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    price: '',
     category: '',
     country: '',
     quality: '',
@@ -40,6 +39,11 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [frontImageFile, setFrontImageFile] = useState<File | null>(null);
+  const [backImageFile, setBackImageFile] = useState<File | null>(null);
+  const [frontPreview, setFrontPreview] = useState('');
+  const [backPreview, setBackPreview] = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
 
   // Set form data when product changes
   useEffect(() => {
@@ -51,12 +55,16 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
 
       setFormData({
         name: product.name,
-        price: product.price,
         category: '',
         country: getAttr('pa_country'),
         quality: getAttr('pa_quality'),
         year: getAttr('pa_issue-year')
       });
+
+      setFrontPreview(product.images?.[0]?.src || '');
+      setBackPreview(product.images?.[1]?.src || '');
+      setFrontImageFile(null);
+      setBackImageFile(null);
     }
   }, [product]);
 
@@ -125,6 +133,23 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
 };
 
 
+  const uploadImage = async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+
+    const response = await fetch('/api/media/upload', {
+      method: 'POST',
+      body: form
+    });
+
+    const data = await response.json();
+    if (data.success && data.id) {
+      return data.id as number;
+    }
+
+    throw new Error(data.error || 'Image upload failed');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
@@ -132,13 +157,39 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
     setSaving(true);
 
     try {
+      const imagesPayload: Array<{ id: number; position: number }> = [];
+
+      if (frontImageFile) {
+        setUploadProgress('Uploading front image…');
+        const frontId = await uploadImage(frontImageFile);
+        imagesPayload.push({ id: frontId, position: 0 });
+      } else if (product.images?.[0]?.id) {
+        imagesPayload.push({ id: product.images[0].id, position: 0 });
+      }
+
+      if (backImageFile) {
+        setUploadProgress('Uploading back image…');
+        const backId = await uploadImage(backImageFile);
+        imagesPayload.push({ id: backId, position: 1 });
+      } else if (product.images?.[1]?.id) {
+        imagesPayload.push({ id: product.images[1].id, position: 1 });
+      }
+
+      setUploadProgress('Saving changes…');
+
+      const payload: Record<string, unknown> = {
+        id: product.id,
+        ...formData
+      };
+
+      if (imagesPayload.length > 0) {
+        payload.images = imagesPayload;
+      }
+
       const response = await fetch('/api/products/update', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: product.id,
-          ...formData
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -154,6 +205,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
       alert('❌ Error updating product');
       console.error(error);
     } finally {
+      setUploadProgress('');
       setSaving(false);
     }
   };
@@ -164,8 +216,14 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-2xl font-bold text-gray-900">Edit Product</h2>
+        <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-400">Edit & sync</p>
+            <h2 className="text-2xl font-bold text-gray-900">Edit Product</h2>
+          </div>
+          {uploadProgress && (
+            <span className="text-xs font-semibold text-sky-600">{uploadProgress}</span>
+          )}
         </div>
 
         {/* Form */}
@@ -193,20 +251,6 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
-              />
-            </div>
-
-            {/* Price */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Price ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -316,6 +360,71 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               )}
+            </div>
+
+            {/* Image updates */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Images</p>
+                  <p className="text-xs text-slate-500">Upload to replace the current visuals.</p>
+                </div>
+                {(frontImageFile || backImageFile) && (
+                  <span className="text-xs font-semibold text-sky-600">New media selected</span>
+                )}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-white p-4">
+                  <label className="text-sm font-medium text-gray-700">
+                    Front image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        setFrontImageFile(file);
+                        setFrontPreview(URL.createObjectURL(file));
+                      }
+                    }}
+                    className="file-input"
+                  />
+                  {frontPreview && (
+                    <div className="image-preview">
+                      <img src={frontPreview} alt="Front preview" />
+                      <p className="text-xs text-gray-600 mt-1">
+                        {frontImageFile?.name || product.images?.[0]?.name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-white p-4">
+                  <label className="text-sm font-medium text-gray-700">
+                    Back image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        setBackImageFile(file);
+                        setBackPreview(URL.createObjectURL(file));
+                      }
+                    }}
+                    className="file-input"
+                  />
+                  {backPreview && (
+                    <div className="image-preview">
+                      <img src={backPreview} alt="Back preview" />
+                      <p className="text-xs text-gray-600 mt-1">
+                        {backImageFile?.name || product.images?.[1]?.name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Buttons */}

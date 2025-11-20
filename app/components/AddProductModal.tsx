@@ -44,13 +44,21 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
       const countriesRes = await fetch('/api/attributes/countries');
       const countriesData = await countriesRes.json();
       if (Array.isArray(countriesData)) {
-        setCountries(countriesData.map((c: any) => c.name).sort());
+        const countryNames = countriesData
+          .map((c: { name?: string }) => c?.name)
+          .filter((name): name is string => Boolean(name))
+          .sort((a, b) => a.localeCompare(b));
+        setCountries(countryNames);
       }
 
       const yearsRes = await fetch('/api/attributes/years');
       const yearsData = await yearsRes.json();
       if (Array.isArray(yearsData)) {
-        setYears(yearsData.map((y: any) => y.name).sort((a, b) => b.localeCompare(a)));
+        const yearNames = yearsData
+          .map((y: { name?: string }) => y?.name)
+          .filter((name): name is string => Boolean(name))
+          .sort((a, b) => b.localeCompare(a));
+        setYears(yearNames);
       }
     } catch (error) {
       console.error('Error loading options:', error);
@@ -177,9 +185,10 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
       } else {
         alert('❌ Error: ' + (data.error || 'Failed to add product'));
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Submit error:', error);
-      alert('❌ Network error: ' + error.message);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('❌ Network error: ' + message);
     } finally {
       setSaving(false);
       setUploadProgress('');
@@ -188,124 +197,132 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content add-product-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">➕ Add New Product</h2>
-          <button onClick={onClose} className="modal-close">✕</button>
+      <div
+        className="modal-content add-product-modal bg-gradient-to-b from-white to-slate-50 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500 text-white">
+          <div>
+            <p className="text-xs uppercase tracking-widest opacity-80">Quick add</p>
+            <h2 className="modal-title text-white">➕ Add New Product</h2>
+          </div>
+          <button onClick={onClose} className="modal-close text-white/80 hover:text-white">
+            ✕
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form">
-          {/* Product Name */}
-          <div className="form-group">
-            <label>Product Name *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              placeholder="Enter product name"
-            />
-          </div>
-
-          {/* Image Uploads */}
-          <div className="image-upload-section">
-            {/* Front Image */}
+        <form onSubmit={handleSubmit} className="modal-form space-y-6">
+          <section className="grid gap-4 md:grid-cols-2">
             <div className="form-group">
-              <label>Front Image (Main)</label>
+              <label className="flex items-center justify-between">
+                <span>Product Name *</span>
+                <span className="text-xs font-semibold text-sky-600">Required</span>
+              </label>
               <input
-                type="file"
-                accept="image/*"
-                onChange={handleFrontImageChange}
-                className="file-input"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                placeholder="Ex: 20 Dirhams 2015"
+                className="shadow-inner"
               />
-              {frontPreview && (
-                <div className="image-preview">
-                  <img src={frontPreview} alt="Front preview" />
-                  <p className="text-xs text-gray-600 mt-1">{frontImage?.name}</p>
-                </div>
-              )}
             </div>
 
-            {/* Back Image */}
             <div className="form-group">
-              <label>Back Image (Gallery)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleBackImageChange}
-                className="file-input"
-              />
-              {backPreview && (
-                <div className="image-preview">
-                  <img src={backPreview} alt="Back preview" />
-                  <p className="text-xs text-gray-600 mt-1">{backImage?.name}</p>
-                </div>
+              <label>Country</label>
+              {loadingOptions ? (
+                <div className="animate-pulse rounded-lg bg-slate-200 h-11" />
+              ) : (
+                <select
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                >
+                  <option value="">Select country</option>
+                  {countries.map(country => (
+                    <option key={country} value={country}>{country}</option>
+                  ))}
+                </select>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Country Dropdown */}
-          <div className="form-group">
-            <label>Country</label>
-            {loadingOptions ? (
-              <select disabled>
-                <option>Loading countries...</option>
-              </select>
-            ) : (
+          <section className="grid gap-4 md:grid-cols-2">
+            <div className="form-group">
+              <label>Quality</label>
               <select
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                value={formData.quality}
+                onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
               >
-                <option value="">Select country</option>
-                {countries.map(country => (
-                  <option key={country} value={country}>{country}</option>
-                ))}
+                <option value="">Select quality</option>
+                <option value="New">New</option>
+                <option value="Good">Good</option>
+                <option value="Used">Used</option>
               </select>
-            )}
-          </div>
+            </div>
 
-          {/* Quality Dropdown */}
-          <div className="form-group">
-            <label>Quality</label>
-            <select
-              value={formData.quality}
-              onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
-            >
-              <option value="">Select quality</option>
-              <option value="New">New</option>
-              <option value="Good">Good</option>
-              <option value="Used">Used</option>
-            </select>
-          </div>
+            <div className="form-group">
+              <label>Issue Year</label>
+              {loadingOptions ? (
+                <div className="animate-pulse rounded-lg bg-slate-200 h-11" />
+              ) : (
+                <select
+                  value={formData.year}
+                  onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                >
+                  <option value="">Select year</option>
+                  {years.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </section>
 
-          {/* Year Dropdown */}
-          <div className="form-group">
-            <label>Issue Year</label>
-            {loadingOptions ? (
-              <select disabled>
-                <option>Loading years...</option>
-              </select>
-            ) : (
-              <select
-                value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-              >
-                <option value="">Select year</option>
-                {years.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            )}
-          </div>
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-600 mb-3">
+              Upload images <span className="text-xs font-normal text-slate-400">(front & back)</span>
+            </p>
+            <div className="image-upload-section">
+              <div className="form-group">
+                <label>Front Image (Main)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFrontImageChange}
+                  className="file-input"
+                />
+                {frontPreview && (
+                  <div className="image-preview">
+                    <img src={frontPreview} alt="Front preview" />
+                    <p className="text-xs text-gray-600 mt-1">{frontImage?.name}</p>
+                  </div>
+                )}
+              </div>
 
-          {/* Upload Progress */}
+              <div className="form-group">
+                <label>Back Image (Gallery)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBackImageChange}
+                  className="file-input"
+                />
+                {backPreview && (
+                  <div className="image-preview">
+                    <img src={backPreview} alt="Back preview" />
+                    <p className="text-xs text-gray-600 mt-1">{backImage?.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
           {uploadProgress && (
             <div className="upload-progress">
               {uploadProgress}
             </div>
           )}
 
-          {/* Buttons */}
           <div className="modal-actions">
             <button
               type="submit"

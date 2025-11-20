@@ -1,22 +1,33 @@
 // app/api/products/private/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchWooCommerce } from '@/lib/woocommerce';
-import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const status = searchParams.get('status') || 'private';
+  const page = Math.max(parseInt(searchParams.get('page') || '1', 10) || 1, 1);
+  const perPageRaw = parseInt(searchParams.get('per_page') || '100', 10) || 100;
+  const perPage = Math.min(Math.max(perPageRaw, 10), 100);
+
   try {
-    // Fetch private products with images
-    const products = await fetchWooCommerce('/products?status=private&per_page=100');
-    
-    console.log('📦 Fetched private products:', products.length);
-    
-    // Log first product to check images
-    if (products.length > 0) {
-      console.log('Sample product images:', products[0].images);
-    }
-    
-    return NextResponse.json(products);
-  } catch (error: any) {
-    console.error('Private products API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const products = await fetchWooCommerce(
+      `/products?status=${status}&per_page=${perPage}&page=${page}`
+    );
+
+    console.log(
+      `📦 Fetched ${products.length} ${status} products (page ${page}, per_page ${perPage})`
+    );
+
+    const response = NextResponse.json(products);
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=120, stale-while-revalidate=300'
+    );
+    return response;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Failed to load products';
+    console.error('Private products API error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

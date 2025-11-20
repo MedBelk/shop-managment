@@ -2,10 +2,15 @@
 import { fetchWooCommerce } from '@/lib/woocommerce';
 import { NextRequest, NextResponse } from 'next/server';
 
+type IncomingImage = {
+  id?: number;
+  position?: number;
+};
+
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, price, category, country, quality, year } = body;
+    const { id, name, price, category, country, quality, year, images } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -15,7 +20,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     
     if (name) updateData.name = name;
     if (price) updateData.regular_price = price.toString();
@@ -27,7 +32,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update attributes if provided
-    const attributes = [];
+    const attributes: Array<{ id: number; name: string; visible: boolean; options: string[] }> = [];
     
     if (country) {
       attributes.push({
@@ -60,6 +65,19 @@ export async function PUT(request: NextRequest) {
       updateData.attributes = attributes;
     }
 
+    if (Array.isArray(images) && images.length > 0) {
+      const sanitizedImages = (images as IncomingImage[])
+        .filter((img) => typeof img?.id === 'number')
+        .map((img, index) => ({
+          id: img.id,
+          position: typeof img.position === 'number' ? img.position : index
+        }));
+
+      if (sanitizedImages.length > 0) {
+        updateData.images = sanitizedImages;
+      }
+    }
+
     console.log('Updating product with data:', updateData);
 
     // Update product via WooCommerce API
@@ -69,10 +87,11 @@ export async function PUT(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, product: updatedProduct });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message },
+      { error: message },
       { status: 500 }
     );
   }
