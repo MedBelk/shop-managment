@@ -75,63 +75,62 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
     }
   }, [isOpen]);
 
- const loadOptions = async () => {
-  try {
-    setLoading(true);
-    setLoadError('');
-
-    // Fetch categories
+  const loadOptions = async () => {
     try {
-      const catResponse = await fetch('/api/categories');
-      if (catResponse.ok) {
-        const catData = await catResponse.json();
-        setCategories(Array.isArray(catData) ? catData : []);
+      setLoading(true);
+      setLoadError('');
+
+      // Fetch categories
+      try {
+        const catResponse = await fetch('/api/categories');
+        if (catResponse.ok) {
+          const catData = await catResponse.json();
+          setCategories(Array.isArray(catData) ? catData : []);
+        }
+      } catch (e) {
+        console.error('Failed to load categories:', e);
       }
-    } catch (e) {
-      console.error('Failed to load categories:', e);
-    }
 
-    // Fetch countries (attribute ID 6)
-    try {
-      const countryResponse = await fetch('/api/attributes/countries');
-      if (countryResponse.ok) {
-        const countryData = await countryResponse.json();
-        setCountries(Array.isArray(countryData) ? countryData : []);
+      // Fetch countries (attribute ID 6)
+      try {
+        const countryResponse = await fetch('/api/attributes/countries');
+        if (countryResponse.ok) {
+          const countryData = await countryResponse.json();
+          setCountries(Array.isArray(countryData) ? countryData : []);
+        }
+      } catch (e) {
+        console.error('Failed to load countries:', e);
       }
-    } catch (e) {
-      console.error('Failed to load countries:', e);
-    }
 
-    // Fetch qualities (attribute ID 8)
-    try {
-      const qualityResponse = await fetch('/api/attributes/quality');
-      if (qualityResponse.ok) {
-        const qualityData = await qualityResponse.json();
-        setQualities(Array.isArray(qualityData) ? qualityData : []);
+      // Fetch qualities (attribute ID 8)
+      try {
+        const qualityResponse = await fetch('/api/attributes/quality');
+        if (qualityResponse.ok) {
+          const qualityData = await qualityResponse.json();
+          setQualities(Array.isArray(qualityData) ? qualityData : []);
+        }
+      } catch (e) {
+        console.error('Failed to load qualities:', e);
       }
-    } catch (e) {
-      console.error('Failed to load qualities:', e);
-    }
 
-    // Fetch years (attribute ID 7)
-    try {
-      const yearResponse = await fetch('/api/attributes/years');
-      if (yearResponse.ok) {
-        const yearData = await yearResponse.json();
-        setYears(Array.isArray(yearData) ? yearData : []);
+      // Fetch years (attribute ID 7)
+      try {
+        const yearResponse = await fetch('/api/attributes/years');
+        if (yearResponse.ok) {
+          const yearData = await yearResponse.json();
+          setYears(Array.isArray(yearData) ? yearData : []);
+        }
+      } catch (e) {
+        console.error('Failed to load years:', e);
       }
-    } catch (e) {
-      console.error('Failed to load years:', e);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading options:', error);
+      setLoadError('Failed to load dropdown options. You can still edit manually.');
+      setLoading(false);
     }
-
-    setLoading(false);
-  } catch (error) {
-    console.error('Error loading options:', error);
-    setLoadError('Failed to load dropdown options. You can still edit manually.');
-    setLoading(false);
-  }
-};
-
+  };
 
   const uploadImage = async (file: File) => {
     const form = new FormData();
@@ -249,7 +248,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 required
               />
             </div>
@@ -263,11 +262,14 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium"
+                  style={{ color: formData.category ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select Category</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select Category</option>
                   {categories.map(cat => (
-                    <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    <option key={cat.id} value={cat.name} style={{ color: '#1f2937' }}>
+                      {cat.name}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -276,7 +278,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   placeholder="Enter category"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 />
               )}
             </div>
@@ -290,11 +292,14 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 <select
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium"
+                  style={{ color: formData.country ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select Country</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select Country</option>
                   {countries.map(country => (
-                    <option key={country.id} value={country.name}>{country.name}</option>
+                    <option key={country.id} value={country.name} style={{ color: '#1f2937' }}>
+                      {country.name}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -303,7 +308,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   placeholder="Enter country"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 />
               )}
             </div>
@@ -317,11 +322,14 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 <select
                   value={formData.quality}
                   onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium"
+                  style={{ color: formData.quality ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select Quality</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select Quality</option>
                   {qualities.map(quality => (
-                    <option key={quality.id} value={quality.name}>{quality.name}</option>
+                    <option key={quality.id} value={quality.name} style={{ color: '#1f2937' }}>
+                      {quality.name}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -330,7 +338,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                   value={formData.quality}
                   onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
                   placeholder="Enter quality"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 />
               )}
             </div>
@@ -344,11 +352,14 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                 <select
                   value={formData.year}
                   onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium"
+                  style={{ color: formData.year ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select Year</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select Year</option>
                   {years.map(year => (
-                    <option key={year.id} value={year.name}>{year.name}</option>
+                    <option key={year.id} value={year.name} style={{ color: '#1f2937' }}>
+                      {year.name}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -357,7 +368,7 @@ export default function EditProductModal({ product, isOpen, onClose, onSave }: E
                   value={formData.year}
                   onChange={(e) => setFormData({ ...formData, year: e.target.value })}
                   placeholder="Enter year"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 />
               )}
             </div>

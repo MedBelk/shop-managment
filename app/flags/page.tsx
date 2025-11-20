@@ -62,10 +62,23 @@ export default function FlagsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 to-blue-50">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
-          <p className="mt-4 text-gray-600">Loading countries...</p>
+          {/* Modern globe animation */}
+          <div className="relative inline-block">
+            {/* Outer rotating ring */}
+            <div className="absolute inset-0 animate-spin">
+              <div className="w-24 h-24 rounded-full border-4 border-transparent border-t-blue-500 border-r-blue-400"></div>
+            </div>
+            {/* Middle rotating ring - opposite direction */}
+            <div className="absolute inset-2 animate-spin-reverse">
+              <div className="w-20 h-20 rounded-full border-4 border-transparent border-b-purple-500 border-l-purple-400"></div>
+            </div>
+            {/* Center globe icon */}
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <span className="text-5xl animate-pulse">🌍</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -74,9 +87,10 @@ export default function FlagsPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center text-red-600">
-          <p className="text-xl font-semibold">❌ Error</p>
-          <p className="mt-2">{error}</p>
+        <div className="text-center text-red-600 max-w-md mx-auto p-8 bg-white rounded-2xl shadow-lg">
+          <div className="text-6xl mb-4">⚠️</div>
+          <p className="text-xl font-semibold mb-2">Unable to Load Countries</p>
+          <p className="text-gray-600">{error}</p>
         </div>
       </div>
     );
@@ -234,6 +248,7 @@ export default function FlagsPage() {
 
         {filteredCountries.length === 0 && (
           <div className="text-center py-12">
+            <div className="text-6xl mb-4">🔍</div>
             <p className="text-gray-500 text-lg">
               No countries match your search. Try a different keyword.
             </p>

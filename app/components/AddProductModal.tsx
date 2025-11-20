@@ -113,8 +113,6 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
     }
   };
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -195,13 +193,15 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-content add-product-modal bg-gradient-to-b from-white to-slate-50 shadow-2xl"
+        className="modal-content add-product-modal bg-linear-to-b from-white to-slate-50 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500 text-white">
+        <div className="modal-header bg-linear-to-r from-blue-600 via-sky-500 to-cyan-500 text-white">
           <div>
             <p className="text-xs uppercase tracking-widest opacity-80">Quick add</p>
             <h2 className="modal-title text-white">➕ Add New Product</h2>
@@ -236,10 +236,14 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
                 <select
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium shadow-sm"
+                  style={{ color: formData.country ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select country</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select country</option>
                   {countries.map(country => (
-                    <option key={country} value={country}>{country}</option>
+                    <option key={country} value={country} style={{ color: '#1f2937' }}>
+                      {country}
+                    </option>
                   ))}
                 </select>
               )}
@@ -252,11 +256,13 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
               <select
                 value={formData.quality}
                 onChange={(e) => setFormData({ ...formData, quality: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium shadow-sm"
+                style={{ color: formData.quality ? '#1f2937' : '#9ca3af' }}
               >
-                <option value="">Select quality</option>
-                <option value="New">New</option>
-                <option value="Good">Good</option>
-                <option value="Used">Used</option>
+                <option value="" style={{ color: '#9ca3af' }}>Select quality</option>
+                <option value="New" style={{ color: '#1f2937' }}>New</option>
+                <option value="Good" style={{ color: '#1f2937' }}>Good</option>
+                <option value="Used" style={{ color: '#1f2937' }}>Used</option>
               </select>
             </div>
 
@@ -268,10 +274,14 @@ export default function AddProductModal({ isOpen, onClose, onAdd }: AddProductMo
                 <select
                   value={formData.year}
                   onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 font-medium shadow-sm"
+                  style={{ color: formData.year ? '#1f2937' : '#9ca3af' }}
                 >
-                  <option value="">Select year</option>
+                  <option value="" style={{ color: '#9ca3af' }}>Select year</option>
                   {years.map(year => (
-                    <option key={year} value={year}>{year}</option>
+                    <option key={year} value={year} style={{ color: '#1f2937' }}>
+                      {year}
+                    </option>
                   ))}
                 </select>
               )}

@@ -388,7 +388,7 @@ export default function CountryDetailPage() {
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         {(activeTab === 'public' || activeTab === 'private') && (
           <>
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-lg border border-blue-100 space-y-4">
+            <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-lg border border-blue-100 space-y-4">
               <div className="flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-blue-600"
