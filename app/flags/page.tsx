@@ -206,40 +206,47 @@ export default function FlagsPage() {
                 aria-label={`Open ${country.name}`}
                 className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 rounded-xl"
               >
-                <div className="bg-white rounded-xl border-2 border-gray-200 p-6 text-center transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1">
-                  <div className="mb-4 flex items-center justify-center h-16">
+                {/* Fixed height card with consistent sizing */}
+                <div className="bg-white rounded-xl border-2 border-gray-200 p-5 text-center transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 h-[200px] flex flex-col justify-between">
+                  {/* Flag container with fixed aspect ratio */}
+                  <div className="flex items-center justify-center mb-3">
                     {hasFlagError ? (
-                      <div className="text-4xl" aria-hidden>
+                      <div className="text-4xl w-24 h-16 flex items-center justify-center" aria-hidden>
                         🏳️
                       </div>
                     ) : (
-                      <Image
-                        src={flagUrl}
-                        alt={`${country.name} flag`}
-                        width={96}
-                        height={64}
-                        className="rounded shadow-md object-cover"
-                        onError={() =>
-                          setFlagErrors((prev) => ({
-                            ...prev,
-                            [country.id]: true,
-                          }))
-                        }
-                      />
+                      <div className="w-24 h-16 relative">
+                        <Image
+                          src={flagUrl}
+                          alt={`${country.name} flag`}
+                          fill
+                          className="rounded shadow-md object-cover"
+                          sizes="96px"
+                          onError={() =>
+                            setFlagErrors((prev) => ({
+                              ...prev,
+                              [country.id]: true,
+                            }))
+                          }
+                        />
+                      </div>
                     )}
                   </div>
 
-                  <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-600">
-                    {searchTerm ? (
-                      <HighlightText text={country.name} highlight={searchTerm} />
-                    ) : (
-                      country.name
-                    )}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {country.count}{' '}
-                    {country.count === 1 ? 'product' : 'products'}
-                  </p>
+                  {/* Text content with fixed height and overflow handling */}
+                  <div className="flex-1 flex flex-col justify-center min-h-0">
+                    <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 text-base leading-tight line-clamp-2">
+                      {searchTerm ? (
+                        <HighlightText text={country.name} highlight={searchTerm} />
+                      ) : (
+                        country.name
+                      )}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {country.count}{' '}
+                      {country.count === 1 ? 'product' : 'products'}
+                    </p>
+                  </div>
                 </div>
               </Link>
             );
